@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Chat</title>
+    <style>
+        /* Dark theme (default) */
+        :root, [data-theme="dark"] {
+            --bg: #0f0f12;
+            --surface: #18181c;
+            --border: #2a2a2e;
+            --text: #e4e4e7;
+            --text-muted: #71717a;
+            --accent: #B91D8F;
+            --accent-hover: #d424a8;
+            --user-bubble: #3b3b42;
+            --assistant-bubble: #27272a;
+            --source-link: #c91d9a;
+            --avatar-text: #e4e4e7;
+        }
+        /* Light theme */
+        [data-theme="light"] {
+            --bg: #f4f4f5;
+            --surface: #ffffff;
+            --border: #e4e4e7;
+            --text: #18181b;
+            --text-muted: #71717a;
+            --accent: #B91D8F;
+            --accent-hover: #9a1878;
+            --user-bubble: #e4e4e7;
+            --assistant-bubble: #ffffff;
+            --source-link: #9a1878;
+            --avatar-text: #374151;
+        }
+        [data-theme="light"] .message-body pre,
+        [data-theme="light"] .message-body code { background: rgba(0,0,0,0.06); }
+        [data-theme="light"] .modal-overlay { background: rgba(0,0,0,0.4); }
+        [data-theme="light"] .modal-error { color: #b91c1c; }
+
+        * { box-sizing: border-box; }
+
+        html { height: 100%; margin: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            height: 100vh;
+            max-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .header h1 { font-size: 1.25rem; font-weight: 600; margin: 0; }
+        .header-right {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+            gap: 0.5rem;
+        }
+        .header-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 2rem;
+            padding: 0 0.75rem;
+            font-size: 0.8125rem;
+            line-height: 1.25;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .header-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .header-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+        .header-btn.active:hover { filter: brightness(1.05); }
+        .header .user {
+            font-size: 0.8125rem;
+            line-height: 1.25;
+            color: var(--text-muted);
+            min-height: 2rem;
+            display: inline-flex;
+            align-items: center;
+            padding: 0 0.25rem;
+        }
+        .header a { color: var(--accent); text-decoration: none; }
+        .header a:hover { color: var(--accent-hover); }
+
+        .app-container { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+        .chat-column { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        .debug-pane {
+            width: 0; overflow: hidden; border-left: none; background: var(--surface);
+            display: flex; flex-direction: column; transition: width 0.2s ease;
+        }
+        .debug-pane.visible {
+            width: 42%; min-width: 280px; border-left: 1px solid var(--border);
+        }
+        .debug-pane-header {
+            padding: 0.5rem 1rem; border-bottom: 1px solid var(--border);
+            font-size: 0.875rem; font-weight: 600; flex-shrink: 0;
+        }
+        .debug-pane-content {
+            flex: 1; min-height: 0; overflow: auto; padding: 1rem;
+            font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, monospace;
+            font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+        }
+        .debug-pane-content:empty::before {
+            content: 'Send a message with Debug Mode on to see the retrieve response here.';
+            color: var(--text-muted);
+        }
+
+        .messages {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            width: 100%;
+        }
+        .messages-inner {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 0.75rem;
+        }
+        .message.user { flex-direction: row-reverse; }
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--assistant-bubble);
+            color: var(--avatar-text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .message.user .message-avatar {
+            background: var(--accent);
+            color: #ffffff;
+        }
+        .message-body {
+            max-width: 85%;
+            padding: 1rem 1.25rem;
+            border-radius: 1rem;
+            line-height: 1.6;
+        }
+        .message.assistant .message-body { background: var(--assistant-bubble); border: 1px solid var(--border); }
+        .message.user .message-body { background: var(--user-bubble); }
+        .message-body p { margin: 0 0 0.5rem 0; }
+        .message-body p:last-child { margin-bottom: 0; }
+        .message-body pre, .message-body code { background: rgba(0,0,0,0.3); border-radius: 4px; padding: 0.2em 0.4em; font-size: 0.9em; }
+        .message-body pre { padding: 0.75rem; overflow-x: auto; }
+
+        .sources {
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+        .sources-title { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .sources-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .source-link {
+            display: inline-block;
+            padding: 0.35rem 0.75rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--source-link);
+            text-decoration: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .source-link:hover { background: var(--border); color: var(--accent-hover); }
+
+        .input-area {
+            flex-shrink: 0;
+            padding: 1rem 1.5rem 1.5rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg);
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        .input-wrap {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.5rem;
+        }
+        .input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(185, 29, 143, 0.25); }
+        #query {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 1rem;
+            padding: 0.75rem 1rem;
+            outline: none;
+        }
+        #query::placeholder { color: var(--text-muted); }
+        #send {
+            padding: 0.75rem 1.25rem;
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        #send:hover { background: var(--accent-hover); }
+        #send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .loading { opacity: 0.7; }
+        .loading .typing::after { content: ''; animation: dots 1.2s steps(4, end) infinite; }
+        @keyframes dots { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-muted);
+        }
+        .empty-state h2 { font-size: 1.25rem; color: var(--text); margin-bottom: 0.5rem; }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            max-width: 640px;
+            width: 100%;
+            max-height: 85vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h3 { margin: 0; font-size: 1.1rem; }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .modal-close:hover { color: var(--text); }
+        .modal-body {
+            padding: 1.25rem;
+            overflow-y: auto;
+            flex: 1;
+            line-height: 1.6;
+        }
+        .modal-body .article-content p { margin-bottom: 1rem; }
+        .modal-loading { color: var(--text-muted); }
+        .modal-error { color: #f87171; }
+
+        .theme-toggle { gap: 0.375rem; }
+        .theme-toggle svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Knowledge Chat</h1>
+        <div class="header-right">
+            <button type="button" class="header-btn btn-new-chat" id="newChatBtn" aria-label="New chat" title="Start a new conversation">New chat</button>
+            <button type="button" class="header-btn theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
+                <span id="themeIcon"></span>
+                <span id="themeLabel">Dark</span>
+            </button>
+            <span class="user">
+                {% if user %}{{ user.name }} · {% endif %}
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </span>
+            <button type="button" class="header-btn theme-toggle debug-toggle" id="debugToggle" aria-label="Toggle debug mode" title="Show retrieve API response in a side pane">Debug Mode</button>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <div class="chat-column">
+    <main class="messages" id="messages">
+        <div class="messages-inner" id="messagesInner">
+            <div class="empty-state" id="empty" {% if chat_history %}style="display:none"{% endif %}>
+                <h2>Ask a question</h2>
+                <p>Your answer will be generated from the knowledge base using the top relevant results.</p>
+            </div>
+            {% if chat_history %}
+            {% for item in chat_history %}
+            <div class="message {{ item.role }}">
+                <div class="message-avatar">{{ 'You' if item.role == 'user' else 'AI' }}</div>
+                <div class="message-body">
+                    {% if item.role == 'user' %}
+                    <p>{{ item.content | e }}</p>
+                    {% else %}
+                    <div class="message-text">{{ item.content | safe }}</div>
+                    {% if item.sources %}
+                    <div class="sources">
+                        <div class="sources-title">Sources</div>
+                        <div class="sources-list">
+                            {% for s in item.sources %}
+                            <a href="#" class="source-link" data-article-id="{{ s.id }}">{{ s.name or ('Article ' ~ s.id) }}</a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </main>
+
+    <div class="input-area">
+        <div class="input-wrap">
+            <input type="text" id="query" placeholder="Ask anything..." autocomplete="off">
+            <button type="button" id="send">Send</button>
+        </div>
+    </div>
+        </div>
+
+        <aside class="debug-pane" id="debugPane" aria-label="Debug: retrieve response">
+            <div class="debug-pane-header">Retrieve response</div>
+            <pre class="debug-pane-content" id="debugPaneContent"></pre>
+        </aside>
+    </div>
+
+    <div class="modal-overlay" id="articleModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Source</h3>
+                <button type="button" class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <span class="modal-loading">Loading…</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const messagesEl = document.getElementById('messages');
+        const messagesInner = document.getElementById('messagesInner');
+        const emptyEl = document.getElementById('empty');
+        const queryEl = document.getElementById('query');
+        const sendBtn = document.getElementById('send');
+        const modal = document.getElementById('articleModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+        const modalClose = document.getElementById('modalClose');
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const themeLabel = document.getElementById('themeLabel');
+        const debugToggle = document.getElementById('debugToggle');
+        const debugPane = document.getElementById('debugPane');
+        const debugPaneContent = document.getElementById('debugPaneContent');
+
+        var debugMode = false;
+        function setDebugMode(on) {
+            debugMode = !!on;
+            debugToggle.classList.toggle('active', debugMode);
+            debugPane.classList.toggle('visible', debugMode);
+        }
+        if (debugToggle) {
+            debugToggle.addEventListener('click', function() {
+                setDebugMode(!debugMode);
+            });
+        }
+
+        const STORAGE_KEY = 'knowledge-chat-theme';
+        const sunSvg = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>';
+        const moonSvg = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>';
+
+        function getTheme() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved === 'light' || saved === 'dark') return saved;
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+            return 'dark';
+        }
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem(STORAGE_KEY, theme);
+            themeIcon.innerHTML = theme === 'dark' ? sunSvg : moonSvg;
+            themeLabel.textContent = theme === 'dark' ? 'Dark' : 'Light';
+        }
+        setTheme(getTheme());
+        themeToggle.addEventListener('click', function() {
+            const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            setTheme(next);
+        });
+
+        document.getElementById('newChatBtn').addEventListener('click', function() {
+            fetch('/chat/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+                .then(function(r) {
+                    if (redirectToLoginIf401(r)) return new Promise(function() {});
+                    if (!r.ok) return Promise.reject(new Error('Failed to clear'));
+                    return r.json();
+                })
+                .then(function() {
+                    var messages = messagesEl.querySelectorAll('.message');
+                    for (var i = 0; i < messages.length; i++) messages[i].remove();
+                    emptyEl.style.display = '';
+                    messagesEl.scrollTop = 0;
+                })
+                .catch(function() {});
+        });
+
+        messagesEl.addEventListener('click', function(e) {
+            var a = e.target.closest('a.source-link');
+            if (a) {
+                e.preventDefault();
+                openArticle(a.getAttribute('data-article-id'));
+            }
+        });
+
+        function nl2br(text) {
+            return text.replace(/\n/g, '<br>');
+        }
+
+        function appendMessage(role, content, sources = []) {
+            emptyEl.style.display = 'none';
+            const div = document.createElement('div');
+            div.className = 'message ' + role;
+            const avatar = role === 'user' ? 'You' : 'AI';
+            let body = '<div class="message-avatar">' + avatar + '</div><div class="message-body">';
+            if (role === 'user') {
+                body += '<p>' + nl2br(content.replace(/</g, '&lt;').replace(/>/g, '&gt;')) + '</p>';
+            } else {
+                body += '<div class="message-text">' + content + '</div>';
+                if (sources && sources.length > 0) {
+                    body += '<div class="sources"><div class="sources-title">Sources</div><div class="sources-list">';
+                    sources.forEach(function(s) {
+                        const id = (s.id || '').toString();
+                        const name = (s.name || 'Article ' + id).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        body += '<a href="#" class="source-link" data-article-id="' + id.replace(/"/g, '&quot;') + '">' + name + '</a>';
+                    });
+                    body += '</div></div>';
+                }
+            }
+            body += '</div>';
+            div.innerHTML = body;
+            messagesInner.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        function appendLoading() {
+            const div = document.createElement('div');
+            div.className = 'message assistant loading';
+            div.innerHTML = '<div class="message-avatar">AI</div><div class="message-body"><span class="typing">Thinking</span></div>';
+            div.id = 'loading-msg';
+            messagesInner.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        function removeLoading() {
+            const el = document.getElementById('loading-msg');
+            if (el) el.remove();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function redirectToLoginIf401(r) {
+            if (r.status === 401) {
+                r.json().then(function(data) {
+                    var msg = (data && data.error) ? data.error : 'Please log in again.';
+                    alert(msg);
+                    window.location.href = '/?login_required=1';
+                }).catch(function() {
+                    alert('Please log in again.');
+                    window.location.href = '/?login_required=1';
+                });
+                return true;
+            }
+            return false;
+        }
+
+        function appendStreamingMessage() {
+            emptyEl.style.display = 'none';
+            removeLoading();
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.innerHTML = '<div class="message-avatar">AI</div><div class="message-body"><div class="message-text"></div></div>';
+            messagesInner.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+            return div.querySelector('.message-text');
+        }
+
+        var articleAbortController = null;
+        function openArticle(articleId) {
+            if (articleAbortController) articleAbortController.abort();
+            articleAbortController = new AbortController();
+            var signal = articleAbortController.signal;
+            modal.classList.add('open');
+            modalTitle.textContent = 'Loading…';
+            modalBody.innerHTML = '<span class="modal-loading">Loading…</span>';
+            fetch('/api/article/' + encodeURIComponent(articleId), { signal: signal })
+                .then(function(r) {
+                    if (redirectToLoginIf401(r)) return new Promise(function() {});
+                    if (!r.ok) throw new Error(r.statusText);
+                    return r.json();
+                })
+                .then(function(data) {
+                    if (signal.aborted) return;
+                    modalTitle.textContent = data.name || ('Article ' + articleId);
+                    modalBody.innerHTML = '<div class="article-content">' + (data.content || '<p>No content.</p>') + '</div>';
+                })
+                .catch(function(err) {
+                    if (err.name === 'AbortError') return;
+                    modalTitle.textContent = 'Error';
+                    modalBody.innerHTML = '<p class="modal-error">' + (err.message || 'Failed to load article.') + '</p>';
+                });
+        }
+
+        modalClose.addEventListener('click', function() { modal.classList.remove('open'); });
+        modal.addEventListener('click', function(e) { if (e.target === modal) modal.classList.remove('open'); });
+
+        function sendQuery() {
+            const q = queryEl.value.trim();
+            if (!q) return;
+            queryEl.value = '';
+            appendMessage('user', q);
+            sendBtn.disabled = true;
+            appendLoading();
+
+            fetch('/chat/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: q, debug: debugMode })
+            })
+            .then(function(r) {
+                if (redirectToLoginIf401(r)) return new Promise(function() {});
+                if (!r.ok) {
+                    return r.text().then(function(t) { throw new Error(t || r.statusText); });
+                }
+                if (!r.body) throw new Error('Stream not supported');
+                var reader = r.body.getReader();
+                var messageTextEl = appendStreamingMessage();
+                var buffer = '';
+                var decoder = new TextDecoder();
+                var streamCompleted = false;
+                function processChunk(result) {
+                    if (result.done) {
+                        if (!streamCompleted) {
+                            messageTextEl.innerHTML = '<p class="modal-error">Connection ended unexpectedly. You can try again.</p>';
+                            messagesEl.scrollTop = messagesEl.scrollHeight;
+                        }
+                        sendBtn.disabled = false;
+                        return Promise.resolve();
+                    }
+                    buffer += decoder.decode(result.value, { stream: true });
+                    var lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    for (var i = 0; i < lines.length; i++) {
+                        var line = lines[i].trim();
+                        if (!line) continue;
+                        try {
+                            var obj = JSON.parse(line);
+                            if (obj.debug_retrieve !== undefined) {
+                                try {
+                                    debugPaneContent.textContent = JSON.stringify(obj.debug_retrieve, null, 2);
+                                } catch (e) {
+                                    debugPaneContent.textContent = String(obj.debug_retrieve);
+                                }
+                                continue;
+                            }
+                            if (obj.error) {
+                                streamCompleted = true;
+                                messageTextEl.innerHTML = '<p class="modal-error">' + escapeHtml(obj.error) + '</p>';
+                                sendBtn.disabled = false;
+                                return Promise.resolve();
+                            }
+                            if (obj.t !== undefined) {
+                                messageTextEl.appendChild(document.createTextNode(obj.t));
+                                messagesEl.scrollTop = messagesEl.scrollHeight;
+                            }
+                            if (obj.done && obj.answer !== undefined) {
+                                streamCompleted = true;
+                                messageTextEl.innerHTML = obj.answer;
+                                if (obj.sources && obj.sources.length > 0) {
+                                    var sourcesHtml = '<div class="sources"><div class="sources-title">Sources</div><div class="sources-list">';
+                                    obj.sources.forEach(function(s) {
+                                        var id = (s.id || '').toString();
+                                        var name = (s.name || 'Article ' + id);
+                                        sourcesHtml += '<a href="#" class="source-link" data-article-id="' + id.replace(/"/g, '&quot;') + '">' + escapeHtml(name) + '</a>';
+                                    });
+                                    sourcesHtml += '</div></div>';
+                                    messageTextEl.insertAdjacentHTML('beforeend', sourcesHtml);
+                                }
+                                sendBtn.disabled = false;
+                                messagesEl.scrollTop = messagesEl.scrollHeight;
+                                return Promise.resolve();
+                            }
+                        } catch (e) {}
+                    }
+                    return reader.read().then(processChunk);
+                }
+                return reader.read().then(processChunk);
+            })
+            .catch(function(err) {
+                removeLoading();
+                sendBtn.disabled = false;
+                appendMessage('assistant', 'Error: ' + (err.message || 'Something went wrong.'), []);
+            });
+        }
+
+        sendBtn.addEventListener('click', sendQuery);
+        queryEl.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendQuery();
+            }
+        });
+    </script>
+</body>
+</html>

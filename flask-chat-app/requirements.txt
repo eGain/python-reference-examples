@@ -1,0 +1,9 @@
+egain-api-python
+flask
+python-dotenv
+authlib
+requests
+markdown
+openai
+anthropic
+google-generativeai
