@@ -110,7 +110,7 @@ def get_egain_client():
         return None
     return Egain(
         access_token=token.get("access_token"),
-        server_url=os.getenv("EGAIN_SERVER_URL"), 
+        server_url=os.getenv("EGAIN_API_DOMAIN"), 
     )
 
 
@@ -514,6 +514,8 @@ def chat():
                 portal_id=portal_id,
                 language=language,
                 channel={"name": CHANNEL_NAME},
+                server_url=os.getenv("EGAIN_API_DOMAIN", "https://api.aidev.egain.cloud") + "/core/aiservices/v4/"                
+
             )
 
         if not response or not getattr(response, "search_results", None):
@@ -652,6 +654,7 @@ def chat_stream():
                 portal_id=portal_id,
                 language=language,
                 channel={"name": CHANNEL_NAME},
+                server_url=os.getenv("EGAIN_API_DOMAIN", "https://api.aidev.egain.cloud") + "/core/aiservices/v4/"                
             )
 
         debug_payload = _serialize_retrieve_response(response) if debug else None
@@ -808,7 +811,9 @@ def api_article(article_id):
                 portal_id=portal_id,
                 accept_language="en-US",
                 language=language,
-                article_additional_attributes=["content"]
+                article_additional_attributes=["content"],
+                server_url=os.getenv("EGAIN_API_DOMAIN", "https://api.aidev.egain.cloud") + "/knowledge/portalmgr/v4/"                
+
             )
 
         if article is None:
