@@ -37,7 +37,7 @@ A Flask app that answers questions using your eGain knowledge base. Users sign i
 
    Fill in (reuse from flask-app where applicable):
 
-   - **Auth:** `EGAIN_CLIENT_ID`, `EGAIN_AUTH_URL`, `EGAIN_TOKEN_URL`, `EGAIN_PORTAL_ID`, `EGAIN_LANGUAGE`, `APP_SECRET_KEY`. 
+   - **Auth:** `EGAIN_CLIENT_ID`, `EGAIN_AUTH_URL`, `EGAIN_TOKEN_URL`, `EGAIN_PORTAL_ID`, `EGAIN_LANGUAGE`, `EGAIN_API_DOMAIN`, `APP_SECRET_KEY`. 
    - **Chat:** `MIN_RELEVANCE_SCORE` (e.g. `0.3`) – only results with relevance ≥ this are used; top 5 of those are sent to the LLM
    - **LLM:** `LLM_PROVIDER` = `openai` | `anthropic` | `gemini`, and the corresponding API key:
      - OpenAI: `OPENAI_API_KEY` (optional: `OPENAI_MODEL`, default `gpt-4o-mini`)
