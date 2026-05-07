@@ -319,7 +319,7 @@ def _call_gemini(system_prompt: str, current_turn: str, history: list) -> str:
         import google.generativeai as genai
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
         model = genai.GenerativeModel(
-            model_name=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+            model_name=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
             system_instruction=system_prompt,
         )
         if history:
@@ -381,7 +381,7 @@ def _gemini_stream(system_prompt: str, current_turn: str, history: list):
     import google.generativeai as genai
     genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
     model = genai.GenerativeModel(
-        model_name=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+        model_name=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
         system_instruction=system_prompt,
     )
     if history:
